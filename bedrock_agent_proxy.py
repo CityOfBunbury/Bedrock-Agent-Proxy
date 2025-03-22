@@ -98,24 +98,13 @@ def chat_completions():
     Handle OpenAI-style chat completions API request and proxy to Bedrock Agent
     """
     try:
-        # Check API key
-        if not validate_api_key():
-            return jsonify({
-                "error": {
-                    "message": "Invalid API key",
-                    "type": "invalid_request_error",
-                    "param": null,
-                    "code": "invalid_api_key"
-                }
-            }), 401
-            
         data = request.json
         logger.info(f"Received request: {json.dumps(data, indent=2)}")
         
         # Extract messages and model from OpenAI format
         messages = data.get("messages", [])
         model_id = data.get("model", DEFAULT_AGENT)
-        stream_mode = data.get("stream", True)  # Check if streaming is requested
+        stream_mode = data.get("stream", False)  # Check if streaming is requested
         
         # Get agent configuration based on model ID
         agent_config = AGENTS.get(model_id)
@@ -245,7 +234,17 @@ def chat_completions():
                 # End the stream
                 yield "data: [DONE]\n\n"
             
-            return Response(generate_stream(), mimetype="text/event-stream")
+            # Configure response for proper SSE handling
+            return Response(
+                generate_stream(), 
+                mimetype="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",  # Disable nginx buffering if you're using it
+                    "Transfer-Encoding": "chunked"
+                }
+            )
         
         # Non-streaming mode - collect the full response
         else:
@@ -280,15 +279,6 @@ def chat_completions():
             
             logger.info(f"Sending response from agent {model_id}")
             return jsonify(openai_response)
-        
-    except ClientError as e:
-        error_message = f"AWS Bedrock error: {str(e)}"
-        logger.error(error_message)
-        return jsonify({"error": error_message}), 500
-    except Exception as e:
-        error_message = f"Error processing request: {str(e)}"
-        logger.error(error_message)
-        return jsonify({"error": error_message}), 500
 
 @app.route("/api/v1/models", methods=["GET"])
 def list_models():
