@@ -45,6 +45,30 @@ All configuration is managed through environment variables in the `.env` file:
    AGENT_MY_SECOND_AGENT_ALIAS_ID=your-alias-id
    ```
 
+## API Key Authentication
+
+This proxy supports API key authentication to match OpenAI API behavior:
+
+1. Configure your API key in the `.env` file:
+   ```
+   # Set a custom API key
+   API_KEY=your-custom-key
+   
+   # Or disable API key validation
+   API_KEY=none
+   ```
+
+2. When making requests to the proxy, include the API key in the Authorization header:
+   ```
+   Authorization: Bearer your-custom-key
+   ```
+
+3. When configuring OpenWebUI:
+   - Set the API key to match the one in your `.env` file
+   - If you've disabled API key validation (`API_KEY=none`), you can use any value in OpenWebUI
+
+The proxy will validate the API key for all endpoints, including `/v1/chat/completions` and `/v1/models`.
+
 ## Build and Run with Docker
 
 1. Build the Docker image and start the container:

@@ -28,6 +28,9 @@ PORT = int(os.environ.get("PORT", 5000))
 HOST = os.environ.get("HOST", "0.0.0.0")
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
+# Load API key configuration - this is the mock API key to accept
+API_KEY = os.environ.get("API_KEY", "bedrock-agent-proxy-key")
+
 # Load agent configuration
 DEFAULT_AGENT = os.environ.get("DEFAULT_AGENT", "COBWEBAI-ALIAS")
 
@@ -58,12 +61,54 @@ bedrock_agent_runtime = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )
 
+def validate_api_key():
+    """
+    Validate the API key from the Authorization header
+    Returns True if valid, False otherwise
+    """
+    auth_header = request.headers.get('Authorization')
+    
+    # If API_KEY is set to empty string or "none", skip validation
+    if not API_KEY or API_KEY.lower() == "none":
+        return True
+        
+    if not auth_header:
+        logger.warning("Missing Authorization header")
+        return False
+        
+    # Extract the key from the Authorization header
+    # The format is typically "Bearer YOUR_API_KEY"
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        logger.warning("Invalid Authorization header format")
+        return False
+        
+    provided_key = parts[1]
+    
+    # Validate against our configured API key
+    if provided_key != API_KEY:
+        logger.warning("Invalid API key provided")
+        return False
+        
+    return True
+
 @app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
     """
     Handle OpenAI-style chat completions API request and proxy to Bedrock Agent
     """
     try:
+        # Check API key
+        if not validate_api_key():
+            return jsonify({
+                "error": {
+                    "message": "Invalid API key",
+                    "type": "invalid_request_error",
+                    "param": null,
+                    "code": "invalid_api_key"
+                }
+            }), 401
+            
         data = request.json
         logger.info(f"Received request: {json.dumps(data, indent=2)}")
         
@@ -250,6 +295,17 @@ def list_models():
     """
     Return a list of available Bedrock Agents as models that OpenWebUI can use
     """
+    # Check API key for models endpoint too
+    if not validate_api_key():
+        return jsonify({
+            "error": {
+                "message": "Invalid API key",
+                "type": "invalid_request_error",
+                "param": None,
+                "code": "invalid_api_key"
+            }
+        }), 401
+        
     models_data = []
     
     # Convert each agent to a model entry
@@ -273,5 +329,6 @@ if __name__ == "__main__":
     logger.info(f"AWS Region: {AWS_REGION}")
     logger.info(f"Available agents: {list(AGENTS.keys())}")
     logger.info(f"Default agent: {DEFAULT_AGENT}")
+    logger.info(f"API Key required: {API_KEY != 'none' and API_KEY != ''}")
     
     app.run(host=HOST, port=PORT, debug=DEBUG)
