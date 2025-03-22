@@ -104,7 +104,7 @@ def chat_completions():
         # Extract messages and model from OpenAI format
         messages = data.get("messages", [])
         model_id = data.get("model", DEFAULT_AGENT)
-        stream_mode = data.get("stream", True)  # Check if streaming is requested
+        stream_mode = data.get("stream", False)  # Check if streaming is requested
         
         # Get agent configuration based on model ID
         agent_config = AGENTS.get(model_id)
@@ -279,6 +279,15 @@ def chat_completions():
             
             logger.info(f"Sending response from agent {model_id}")
             return jsonify(openai_response)
+        
+    except ClientError as e:
+        error_message = f"AWS Bedrock error: {str(e)}"
+        logger.error(error_message)
+        return jsonify({"error": error_message}), 500
+    except Exception as e:
+        error_message = f"Error processing request: {str(e)}"
+        logger.error(error_message)
+        return jsonify({"error": error_message}), 500
 
 @app.route("/api/v1/models", methods=["GET"])
 def list_models():
