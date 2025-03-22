@@ -104,7 +104,7 @@ def chat_completions():
         # Extract messages and model from OpenAI format
         messages = data.get("messages", [])
         model_id = data.get("model", DEFAULT_AGENT)
-        stream_mode = data.get("stream", False)  # Check if streaming is requested
+        stream_mode = data.get("stream", True)  # Check if streaming is requested
         
         # Get agent configuration based on model ID
         agent_config = AGENTS.get(model_id)
