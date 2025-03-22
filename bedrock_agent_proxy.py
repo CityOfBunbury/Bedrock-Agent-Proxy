@@ -92,7 +92,7 @@ def validate_api_key():
         
     return True
 
-@app.route("/v1/chat/completions", methods=["POST"])
+@app.route("/api/v1/chat/completions", methods=["POST"])
 def chat_completions():
     """
     Handle OpenAI-style chat completions API request and proxy to Bedrock Agent
@@ -115,7 +115,7 @@ def chat_completions():
         # Extract messages and model from OpenAI format
         messages = data.get("messages", [])
         model_id = data.get("model", DEFAULT_AGENT)
-        stream_mode = data.get("stream", False)  # Check if streaming is requested
+        stream_mode = data.get("stream", True)  # Check if streaming is requested
         
         # Get agent configuration based on model ID
         agent_config = AGENTS.get(model_id)
@@ -290,7 +290,7 @@ def chat_completions():
         logger.error(error_message)
         return jsonify({"error": error_message}), 500
 
-@app.route("/v1/models", methods=["GET"])
+@app.route("/api/v1/models", methods=["GET"])
 def list_models():
     """
     Return a list of available Bedrock Agents as models that OpenWebUI can use
