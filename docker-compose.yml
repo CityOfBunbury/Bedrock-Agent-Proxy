@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  bedrock-agent-proxy:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env  # Mount .env file for easy updates
+    restart: unless-stopped
