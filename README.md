@@ -67,7 +67,7 @@ This proxy supports API key authentication to match OpenAI API behavior:
    - Set the API key to match the one in your `.env` file
    - If you've disabled API key validation (`API_KEY=none`), you can use any value in OpenWebUI
 
-The proxy will validate the API key for all endpoints, including `/v1/chat/completions` and `/v1/models`.
+The proxy will validate the API key for all endpoints, including `/api/v1/chat/completions` and `/api/v1/models`.
 
 ## Build and Run with Docker
 
@@ -100,8 +100,8 @@ Configure OpenWebUI to use this proxy as its OpenAI API endpoint:
 
 You can test the API endpoints with Postman:
 
-1. GET `http://localhost:5000/v1/models` - Lists available agents as models
-2. POST `http://localhost:5000/v1/chat/completions` - Sends a chat completion request
+1. GET `http://localhost:5000/api/v1/models` - Lists available agents as models
+2. POST `http://localhost:5000/api/v1/chat/completions` - Sends a chat completion request
 
 Example chat completion request body:
 ```json
