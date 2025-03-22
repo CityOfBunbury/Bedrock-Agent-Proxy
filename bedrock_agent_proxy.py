@@ -93,18 +93,22 @@ def validate_api_key():
     return True
 
 @app.route("/api/v1/chat/completions", methods=["POST"])
+@app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
     """
     Handle OpenAI-style chat completions API request and proxy to Bedrock Agent
     """
     try:
         data = request.json
-        logger.info(f"Received request: {json.dumps(data, indent=2)}")
+        logger.info(f"Received request: {json.dumps(data)}")
         
         # Extract messages and model from OpenAI format
         messages = data.get("messages", [])
         model_id = data.get("model", DEFAULT_AGENT)
-        stream_mode = data.get("stream", False)  # Check if streaming is requested
+        stream_mode = data.get("stream", False)  # Check if streaming was requested
+        
+        if stream_mode:
+            logger.info("Streaming was requested but is not supported with Bedrock Agents")
         
         # Get agent configuration based on model ID
         agent_config = AGENTS.get(model_id)
@@ -172,113 +176,37 @@ def chat_completions():
         response_id = f"chatcmpl-{model_id}-{os.urandom(4).hex()}"
         created_time = int(time.time())
         
-        # Handle streaming mode
-        if stream_mode:
-            def generate_stream():
-                # Send the initial response with role
-                chunk = {
-                    "id": response_id,
-                    "object": "chat.completion.chunk",
-                    "created": created_time,
-                    "model": model_id,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant"
-                            },
-                            "finish_reason": None
-                        }
-                    ]
-                }
-                yield f"data: {json.dumps(chunk)}\n\n"
-                
-                # Stream each content chunk
-                for event in response["completion"]:
-                    if "chunk" in event:
-                        content = event["chunk"]["bytes"].decode("utf-8")
-                        if content:
-                            chunk = {
-                                "id": response_id,
-                                "object": "chat.completion.chunk",
-                                "created": created_time,
-                                "model": model_id,
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "delta": {
-                                            "content": content
-                                        },
-                                        "finish_reason": None
-                                    }
-                                ]
-                            }
-                            yield f"data: {json.dumps(chunk)}\n\n"
-                
-                # Send the final chunk with finish_reason
-                chunk = {
-                    "id": response_id,
-                    "object": "chat.completion.chunk",
-                    "created": created_time,
-                    "model": model_id,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop"
-                        }
-                    ]
-                }
-                yield f"data: {json.dumps(chunk)}\n\n"
-                
-                # End the stream
-                yield "data: [DONE]\n\n"
-            
-            # Configure response for proper SSE handling
-            return Response(
-                generate_stream(), 
-                mimetype="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",  # Disable nginx buffering if you're using it
-                    "Transfer-Encoding": "chunked"
-                }
-            )
+        # Handle EventStream response
+        completion = ""
+        for event in response["completion"]:
+            if "chunk" in event:
+                completion += event["chunk"]["bytes"].decode("utf-8")
         
-        # Non-streaming mode - collect the full response
-        else:
-            # Handle EventStream response
-            completion = ""
-            for event in response["completion"]:
-                if "chunk" in event:
-                    completion += event["chunk"]["bytes"].decode("utf-8")
-            
-            # Map Bedrock Agent response to OpenAI format
-            openai_response = {
-                "id": response_id,
-                "object": "chat.completion",
-                "created": created_time,
-                "model": model_id,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": completion
-                        },
-                        "finish_reason": "stop"
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": -1,  # Not available from Bedrock
-                    "completion_tokens": -1,  # Not available from Bedrock
-                    "total_tokens": -1  # Not available from Bedrock
+        # Map Bedrock Agent response to OpenAI format
+        openai_response = {
+            "id": response_id,
+            "object": "chat.completion",
+            "created": created_time,
+            "model": model_id,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": completion
+                    },
+                    "finish_reason": "stop"
                 }
+            ],
+            "usage": {
+                "prompt_tokens": -1,  # Not available from Bedrock
+                "completion_tokens": -1,  # Not available from Bedrock
+                "total_tokens": -1  # Not available from Bedrock
             }
-            
-            logger.info(f"Sending response from agent {model_id}")
-            return jsonify(openai_response)
+        }
+        
+        logger.info(f"Sending response from agent {model_id}")
+        return jsonify(openai_response)
         
     except ClientError as e:
         error_message = f"AWS Bedrock error: {str(e)}"
